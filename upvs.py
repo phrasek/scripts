@@ -10,7 +10,7 @@ installpath = path.join(appdir, dirname)
 
 
 def main():
-    for files in glob.glob(path.join(zippath, "vscode*.zip")):
+    for files in glob(path.join(zippath, "vscode*.zip")):
         filename = files
     try:
         if path.isfile(filename):
