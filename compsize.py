@@ -1,3 +1,4 @@
+import argparse
 import glob
 import os
 import shutil
@@ -6,10 +7,57 @@ import subprocess
 from collections import defaultdict
 from datetime import timedelta
 from math import isclose
-import shutil
-from sys import argv
+
 from humanize import naturalsize
 from tabulate import tabulate
+
+REDUCTIONAMT = 15
+MARGIN = 3
+FILETYPE = "ts"
+ENCFILETYPE = "mkv"
+parser = argparse.ArgumentParser(
+    description=f"Compare files in current directory with extension '{FILETYPE}' of same name but extension '{ENCFILETYPE}' in child 'enc' directory. Files with over lower file size than margin and length within error margin will be moved to child 'del' directory. Files that will be moved are marked with '*'. Press enter to move files or CTRL-C to cancel."
+)
+parser.add_argument(
+    "-m", nargs="?", type=int, help=f"Custom length margin. Default value is {MARGIN}"
+)
+parser.add_argument(
+    "-r",
+    nargs="?",
+    type=int,
+    help=f"Custom reduction margin. Default value is {REDUCTIONAMT}",
+)
+parser.add_argument(
+    "-f",
+    nargs="?",
+    type=str,
+    help=f"Custom filetype. Default value is {FILETYPE}",
+)
+parser.add_argument(
+    "-e",
+    nargs="?",
+    type=str,
+    help=f"Custom enc filetype. Default value is {ENCFILETYPE}",
+)
+parser.add_argument(
+    "-c",
+    dest="c",
+    const=True,
+    action="store_const",
+    help="Only check that reduction is positive.",
+)
+
+args = vars(parser.parse_args())
+if args["m"]:
+    MARGIN = args["m"]
+if args["r"]:
+    REDUCTIONAMT = args["r"]
+if args["f"]:
+    FILETYPE = args["f"]
+if args["e"]:
+    ENCFILETYPE = args["e"]
+if args["c"]:
+    REDUCTIONAMT = 0
 
 
 class VideoFile:
@@ -62,7 +110,7 @@ def keyboardInterruptHandler(signal, frame):
 
 def about(originalLength, newLength, margin=1) -> bool:
     """
-    Returns True if newLength is within accetable error of originalLength.\n
+    Returns True if newLength is within acceptable error of originalLength.\n
     Acceptable error is defined as margin seconds per minute or margin, whichever is larger
     """
     return isclose(
@@ -107,14 +155,14 @@ def compareFiles(origfiles, newfiles):
             totalorig += oldsize
             totalnew += newsize
             star = ""
-            if (reduction := int((oldsize - newsize) / oldsize * 100)) > 15 and about(
-                oldlength, newlength, margin=3
-            ):
+            if (
+                reduction := int((oldsize - newsize) / oldsize * 100)
+            ) > REDUCTIONAMT and about(oldlength, newlength, margin=MARGIN):
                 toMove.append(videofile)
                 star = "*"
             line = [
                 n,
-                star + key,
+                star + key[:24],
                 naturalsize(oldsize),
                 naturalsize(newsize),
                 str(timedelta(seconds=oldlength)),
@@ -139,10 +187,10 @@ def compareFiles(origfiles, newfiles):
 
 
 def test():
-    filetype = "ts" if len(argv) == 1 else argv[1]
+
     signal.signal(signal.SIGINT, keyboardInterruptHandler)
-    origfiles = getFiles(os.getcwd(), filetype)
-    newfiles = getFiles(os.getcwd() + r"\\enc\\", "mkv")
+    origfiles = getFiles(os.getcwd(), FILETYPE)
+    newfiles = getFiles(os.getcwd() + r"\\enc\\", ENCFILETYPE)
     toMove = compareFiles(origfiles=origfiles, newfiles=newfiles)
     while len(toMove) > 0:
         input()
@@ -169,8 +217,8 @@ def test():
                         )
                         continue
 
-        origfiles = getFiles("", filetype)
-        newfiles = getFiles("enc", "mkv")
+        origfiles = getFiles("", FILETYPE)
+        newfiles = getFiles("enc", ENCFILETYPE)
         toMove = compareFiles(origfiles=origfiles, newfiles=newfiles)
 
 
